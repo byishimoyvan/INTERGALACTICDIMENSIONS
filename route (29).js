@@ -1,0 +1,1867 @@
+"use client";
+import { useState, useEffect, useRef, useCallback } from "react";
+import useUser from "@/utils/useUser";
+import {
+  Film,
+  BookOpen,
+  Play,
+  Lock,
+  Search,
+  X,
+  LogOut,
+  Shield,
+  Upload,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
+  Crown,
+  Menu,
+} from "lucide-react";
+
+const LOGO_URL =
+  "https://raw.createusercontent.com/83c42dc4-4b43-4e42-aded-b337415f50ea/";
+
+export default function LandingPage() {
+  const { data: user, loading: userLoading } = useUser();
+  const [profile, setProfile] = useState(null);
+  const [content, setContent] = useState([]);
+  const [genres, setGenres] = useState([]);
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedGenre, setSelectedGenre] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [heroIdx, setHeroIdx] = useState(0);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  const [promptItem, setPromptItem] = useState(null);
+  const [clickedId, setClickedId] = useState(null);
+  const [miniItems, setMiniItems] = useState([]);
+  const heroTimer = useRef(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    fetchGenres();
+  }, []);
+  useEffect(() => {
+    fetchContent();
+  }, [selectedType, selectedGenre, debouncedSearch]);
+  useEffect(() => {
+    if (user) fetchProfile();
+  }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      const r = await fetch("/api/profile");
+      const d = await r.json();
+      setProfile(d.user);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  const fetchGenres = async () => {
+    try {
+      const r = await fetch("/api/genres");
+      const d = await r.json();
+      setGenres(d.genres || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  const fetchContent = async () => {
+    setLoading(true);
+    try {
+      let url = "/api/content?status=approved";
+      if (selectedType !== "all") url += `&type=${selectedType}`;
+      if (selectedGenre !== "all") url += `&genreId=${selectedGenre}`;
+      if (debouncedSearch.trim())
+        url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      const items = d.content || [];
+      setContent(items);
+      if (miniItems.length === 0 && items.length > 0) {
+        setMiniItems(
+          [...items]
+            .sort((a, b) => (b.views || 0) - (a.views || 0))
+            .slice(0, 4),
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (content.length < 2) return;
+    heroTimer.current = setInterval(
+      () => setHeroIdx((i) => (i + 1) % Math.min(content.length, 6)),
+      6500,
+    );
+    return () => clearInterval(heroTimer.current);
+  }, [content.length]);
+
+  const bumpHero = useCallback(
+    (dir) => {
+      clearInterval(heroTimer.current);
+      const max = Math.min(content.length, 6);
+      setHeroIdx((i) => (i + dir + max) % max);
+    },
+    [content.length],
+  );
+
+  const handleWatch = (item) => {
+    if (!user) {
+      setPromptItem(item);
+      setShowSignInPrompt(true);
+      return;
+    }
+    setClickedId(item.id);
+    setTimeout(() => {
+      if (typeof window !== "undefined")
+        window.location.href = `/watch/${item.id}`;
+    }, 650);
+  };
+
+  const isFiltered =
+    selectedGenre !== "all" || selectedType !== "all" || debouncedSearch.trim();
+  const genreRows = genres
+    .map((g) => ({
+      genre: g,
+      items: content.filter((c) => c.genre_id === g.id),
+    }))
+    .filter((r) => r.items.length > 0);
+  const heroItems = content.slice(0, 6);
+  const heroItem = heroItems[heroIdx] || null;
+  const canUpload =
+    profile?.role === "owner" ||
+    (profile?.role === "contributor" && profile?.status === "approved");
+  const isPending =
+    profile?.role === "contributor" && profile?.status === "pending";
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#030308",
+        color: "white",
+        overflowX: "hidden",
+      }}
+    >
+      {/* ── FIXED COSMIC BACKGROUND ── */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          overflow: "hidden",
+        }}
+      >
+        <div className="neb neb1" />
+        <div className="neb neb2" />
+        <div className="neb neb3" />
+        <div className="st st1" />
+        <div className="st st2" />
+        <div className="st st3" />
+        <div className="scan" />
+      </div>
+
+      {/* ── CINEMATIC FLASH ── */}
+      {clickedId && <div key={clickedId} className="cin-flash" />}
+
+      {/* ── SIGN-IN / SUBSCRIBE MODAL ── */}
+      {showSignInPrompt && (
+        <div className="modal-back">
+          <div
+            className="modal-box"
+            style={{ maxWidth: 400, width: "90%", textAlign: "center" }}
+          >
+            <button
+              onClick={() => setShowSignInPrompt(false)}
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                color: "#6b7280",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <X size={20} />
+            </button>
+            <div
+              style={{
+                height: 64,
+                width: 64,
+                borderRadius: "50%",
+                margin: "0 auto 18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background:
+                  "linear-gradient(135deg,rgba(124,58,237,.4),rgba(76,29,149,.2))",
+                border: "1px solid rgba(124,58,237,.5)",
+              }}
+            >
+              <Lock size={26} style={{ color: "#A78BFA" }} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>
+              {promptItem?.is_free
+                ? "Sign In to Watch"
+                : `Unlock — $${promptItem?.price}`}
+            </h2>
+            <p
+              style={{
+                color: "#9ca3af",
+                fontSize: 13,
+                marginBottom: 24,
+                lineHeight: 1.6,
+              }}
+            >
+              {promptItem?.title && (
+                <strong style={{ color: "white" }}>"{promptItem.title}"</strong>
+              )}{" "}
+              {promptItem?.is_free
+                ? "is free with an account."
+                : "or subscribe to watch all paid content."}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <a
+                href="/account/signup"
+                className="gbtn"
+                style={{
+                  padding: "13px 0",
+                  borderRadius: 14,
+                  fontSize: 14,
+                  textDecoration: "none",
+                }}
+              >
+                Join Free ✨
+              </a>
+              {!promptItem?.is_free && (
+                <a
+                  href="/subscribe"
+                  className="sbtn"
+                  style={{
+                    padding: "13px 0",
+                    borderRadius: 14,
+                    fontSize: 14,
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Crown size={13} /> Subscribe All Content
+                </a>
+              )}
+              <a
+                href="/account/signin"
+                className="gbtn-ghost"
+                style={{
+                  padding: "11px 0",
+                  borderRadius: 14,
+                  fontSize: 13,
+                  textDecoration: "none",
+                }}
+              >
+                I have an account →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════
+           NAVBAR — SMALL WHEEL + CENTERED TABS
+         ══════════════════════════════════════════ */}
+      <nav className="navbar">
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: "0 auto",
+            padding: "0 24px",
+            height: 70,
+            display: "flex",
+            alignItems: "center",
+            gap: 0,
+          }}
+        >
+          {/* Logo + Mini orbital wheel */}
+          <a
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              textDecoration: "none",
+              flexShrink: 0,
+              marginRight: 20,
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                width: 44,
+                height: 44,
+                flexShrink: 0,
+              }}
+            >
+              {/* Orbit ring */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 2,
+                  borderRadius: "50%",
+                  border: "1px dashed rgba(124,58,237,.35)",
+                  animation: "mRing 20s linear infinite",
+                }}
+              />
+              {/* Hub */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%,-50%)",
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#7C3AED,#4C1D95)",
+                  border: "1.5px solid rgba(167,139,250,.6)",
+                  boxShadow: "0 0 14px rgba(124,58,237,.7)",
+                  overflow: "hidden",
+                  zIndex: 3,
+                }}
+              >
+                <img
+                  src={LOGO_URL}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    opacity: 0.88,
+                  }}
+                />
+              </div>
+              {/* Orbiting poster dots */}
+              {miniItems.slice(0, 3).map((item, i) => (
+                <div
+                  key={item.id}
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    width: 0,
+                    height: 0,
+                    animation: `mOrb 11s linear infinite`,
+                    animationDelay: `${-((11 * i) / 3)}s`,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: -20,
+                      left: -5,
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      border: "1.5px solid rgba(124,58,237,.55)",
+                      boxShadow: "0 0 6px rgba(124,58,237,.4)",
+                    }}
+                  >
+                    {item.poster_url ? (
+                      <img
+                        src={item.poster_url}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: `hsl(${200 + i * 60},70%,35%)`,
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+              {miniItems.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    width: 0,
+                    height: 0,
+                    animation: "mOrb 8s linear infinite",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: -19,
+                      left: -4,
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#7C3AED",
+                      boxShadow: "0 0 8px #7C3AED",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div style={{ lineHeight: 1.2 }}>
+              <div
+                style={{
+                  fontSize: "8.5px",
+                  fontWeight: 900,
+                  letterSpacing: ".26em",
+                  color: "#A78BFA",
+                }}
+              >
+                INTERGALACTIC
+              </div>
+              <div
+                style={{
+                  fontSize: "8.5px",
+                  fontWeight: 900,
+                  letterSpacing: ".26em",
+                  color: "white",
+                }}
+              >
+                DIMENSIONS
+              </div>
+            </div>
+          </a>
+
+          {/* Center Tabs */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <div
+              className="ctabs"
+              style={{
+                display: "flex",
+                background: "rgba(255,255,255,.04)",
+                borderRadius: 24,
+                padding: 4,
+              }}
+            >
+              {[
+                ["all", "✦ All"],
+                ["movie", "🎬 Movies"],
+                ["series", "📺 Series"],
+                ["storybook", "📚 Books"],
+              ].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => {
+                    setSelectedType(v);
+                    setSelectedGenre("all");
+                  }}
+                  style={{
+                    padding: "7px 15px",
+                    borderRadius: 20,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    transition: "all .2s",
+                    background:
+                      selectedType === v
+                        ? "linear-gradient(135deg,#7C3AED,#6D28D9)"
+                        : "transparent",
+                    color: selectedType === v ? "white" : "#6b7280",
+                    boxShadow:
+                      selectedType === v
+                        ? "0 4px 16px rgba(124,58,237,.4)"
+                        : "none",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Right */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ position: "relative" }} className="di">
+              <Search
+                size={12}
+                style={{
+                  position: "absolute",
+                  left: 11,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#6b7280",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search..."
+                style={{
+                  background: "rgba(255,255,255,.06)",
+                  border: "1px solid rgba(255,255,255,.08)",
+                  borderRadius: 20,
+                  color: "white",
+                  outline: "none",
+                  paddingLeft: 28,
+                  paddingRight: 14,
+                  paddingTop: 7,
+                  paddingBottom: 7,
+                  fontSize: 12,
+                  width: 145,
+                }}
+              />
+            </div>
+
+            {!userLoading && !user && (
+              <div
+                className="di"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <a
+                  href="/subscribe"
+                  className="sub-chip"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "7px 13px",
+                    borderRadius: 20,
+                    textDecoration: "none",
+                  }}
+                >
+                  <Crown size={11} /> Subscribe
+                </a>
+                <a
+                  href="/account/signin"
+                  style={{
+                    fontSize: 12,
+                    color: "#6b7280",
+                    textDecoration: "none",
+                    padding: "7px 10px",
+                  }}
+                >
+                  Sign In
+                </a>
+                <a
+                  href="/account/signup"
+                  className="gbtn"
+                  style={{
+                    fontSize: 12,
+                    padding: "7px 16px",
+                    borderRadius: 20,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
+                >
+                  Join Free
+                </a>
+              </div>
+            )}
+            {user && (
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                {profile?.role === "owner" && (
+                  <a
+                    href="/owner"
+                    className="di owner-chip"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 13px",
+                      borderRadius: 20,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Shield size={11} /> Owner
+                  </a>
+                )}
+                {canUpload && profile?.role !== "owner" && (
+                  <a
+                    href="/contribute"
+                    className="di ghost-chip"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "7px 13px",
+                      borderRadius: 20,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Upload size={11} /> Upload
+                  </a>
+                )}
+                <a
+                  href="/subscribe"
+                  className="di sub-chip"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "7px 13px",
+                    borderRadius: 20,
+                    textDecoration: "none",
+                  }}
+                >
+                  <Crown size={11} /> Subscribe
+                </a>
+                <div
+                  style={{
+                    height: 32,
+                    width: 32,
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg,#7C3AED,#4C1D95)",
+                    border: "2px solid rgba(124,58,237,.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  {profile?.username?.[0]?.toUpperCase() || "U"}
+                </div>
+                <a
+                  href="/account/logout"
+                  style={{ color: "#4b5563", textDecoration: "none" }}
+                >
+                  <LogOut size={14} />
+                </a>
+              </div>
+            )}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="mob-btn"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#9ca3af",
+                cursor: "pointer",
+              }}
+            >
+              <Menu size={22} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile drawer */}
+        {mobileMenuOpen && (
+          <div
+            style={{
+              borderTop: "1px solid rgba(255,255,255,.05)",
+              background: "rgba(4,4,14,.99)",
+              padding: "18px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 13,
+            }}
+          >
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+              style={{
+                background: "rgba(255,255,255,.06)",
+                border: "1px solid rgba(255,255,255,.1)",
+                borderRadius: 12,
+                color: "white",
+                outline: "none",
+                padding: "10px 14px",
+                fontSize: 13,
+              }}
+            />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[
+                ["all", "All"],
+                ["movie", "Movies"],
+                ["series", "Series"],
+                ["storybook", "Books"],
+              ].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => {
+                    setSelectedType(v);
+                    setMobileMenuOpen(false);
+                  }}
+                  style={{
+                    padding: "7px 16px",
+                    borderRadius: 20,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background:
+                      selectedType === v
+                        ? "rgba(124,58,237,.3)"
+                        : "rgba(255,255,255,.06)",
+                    color: selectedType === v ? "#A78BFA" : "#9ca3af",
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <a
+              href="/subscribe"
+              style={{
+                color: "#A78BFA",
+                fontWeight: 700,
+                textDecoration: "none",
+                fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Crown size={14} /> Subscribe — Watch Everything
+            </a>
+            {!user ? (
+              <>
+                <a
+                  href="/account/signin"
+                  style={{
+                    color: "#d1d5db",
+                    textDecoration: "none",
+                    fontSize: 14,
+                  }}
+                >
+                  Sign In
+                </a>
+                <a
+                  href="/account/signup"
+                  style={{
+                    color: "#A78BFA",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    fontSize: 14,
+                  }}
+                >
+                  Join Free ✨
+                </a>
+              </>
+            ) : (
+              <>
+                <a
+                  href="/owner"
+                  style={{
+                    color: "#A78BFA",
+                    textDecoration: "none",
+                    fontSize: 14,
+                    display: profile?.role === "owner" ? "block" : "none",
+                  }}
+                >
+                  Owner Dashboard
+                </a>
+                <a
+                  href="/account/logout"
+                  style={{
+                    color: "#6b7280",
+                    textDecoration: "none",
+                    fontSize: 14,
+                  }}
+                >
+                  Sign Out
+                </a>
+              </>
+            )}
+          </div>
+        )}
+      </nav>
+
+      {isPending && (
+        <div
+          style={{
+            position: "fixed",
+            top: 70,
+            left: 0,
+            right: 0,
+            zIndex: 40,
+            textAlign: "center",
+            padding: 9,
+            background: "rgba(167,139,250,.07)",
+            borderBottom: "1px solid rgba(167,139,250,.14)",
+          }}
+        >
+          <p style={{ fontSize: 12, color: "#A78BFA", margin: 0 }}>
+            ✦ Contributor request <strong>pending approval</strong>
+          </p>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════
+           CINEMATIC HERO
+         ══════════════════════════════════════════ */}
+      <div
+        style={{
+          position: "relative",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "flex-end",
+          overflow: "hidden",
+        }}
+      >
+        {/* Hero backdrop */}
+        {heroItem?.poster_url && (
+          <img
+            key={heroItem.id}
+            src={heroItem.poster_url}
+            alt={heroItem.title}
+            className="hero-bg"
+          />
+        )}
+        {/* Layered gradients */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(100deg, rgba(3,3,8,.97) 0%, rgba(3,3,8,.72) 45%, rgba(3,3,8,.1) 100%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to top, rgba(3,3,8,1) 0%, rgba(3,3,8,.5) 28%, transparent 55%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to bottom, rgba(3,3,8,.65) 0%, transparent 14%)",
+          }}
+        />
+        {/* Film grain */}
+        <div className="grain" />
+
+        {/* Hero text */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 10,
+            width: "100%",
+            maxWidth: 1400,
+            margin: "0 auto",
+            padding: "0 28px 110px",
+          }}
+        >
+          {heroItem ? (
+            <div style={{ maxWidth: 600 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 20,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span className="hero-badge">
+                  <Zap size={9} /> Trending
+                </span>
+                <span
+                  style={{
+                    color: "#6b7280",
+                    fontSize: 11,
+                    textTransform: "uppercase",
+                    letterSpacing: ".15em",
+                  }}
+                >
+                  {heroItem.type === "storybook"
+                    ? "📚 Book"
+                    : heroItem.type === "series"
+                      ? "📺 Series"
+                      : "🎬 Film"}
+                </span>
+                {heroItem.genre_name && (
+                  <span style={{ color: "#4b5563", fontSize: 11 }}>
+                    · {heroItem.genre_name}
+                  </span>
+                )}
+              </div>
+              <h1 className="hero-title">{heroItem.title}</h1>
+              <p
+                style={{
+                  color: "#9ca3af",
+                  fontSize: 15,
+                  lineHeight: 1.65,
+                  maxWidth: 460,
+                  marginBottom: 32,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {heroItem.description}
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginBottom: 44,
+                }}
+              >
+                <button
+                  onClick={() => handleWatch(heroItem)}
+                  className={`play-btn${clickedId === heroItem.id ? " play-clicked" : ""}`}
+                >
+                  <Play size={16} fill="#030308" style={{ marginLeft: 2 }} />
+                  {heroItem.type === "storybook" ? "Read Now" : "Watch Now"}
+                </button>
+                <div
+                  style={{
+                    padding: "14px 20px",
+                    borderRadius: 16,
+                    background: "rgba(255,255,255,.07)",
+                    border: "1px solid rgba(255,255,255,.1)",
+                    backdropFilter: "blur(12px)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  {heroItem.is_free ? (
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 900,
+                        color: "#4ade80",
+                      }}
+                    >
+                      FREE
+                    </span>
+                  ) : (
+                    <>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 900,
+                          color: "#FBBF24",
+                        }}
+                      >
+                        ${heroItem.price}
+                      </span>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        or subscribe
+                      </span>
+                    </>
+                  )}
+                </div>
+                {!user && !heroItem.is_free && (
+                  <a
+                    href="/subscribe"
+                    className="sub-pill"
+                    style={{
+                      padding: "14px 20px",
+                      borderRadius: 16,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Crown size={12} /> Subscribe
+                  </a>
+                )}
+              </div>
+              {heroItems.length > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                  <button onClick={() => bumpHero(-1)} className="hero-nav">
+                    <ChevronLeft size={15} />
+                  </button>
+                  <div style={{ display: "flex", gap: 7 }}>
+                    {heroItems.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          clearInterval(heroTimer.current);
+                          setHeroIdx(i);
+                        }}
+                        style={{
+                          width: i === heroIdx ? 26 : 7,
+                          height: 7,
+                          borderRadius: 4,
+                          background:
+                            i === heroIdx ? "#7C3AED" : "rgba(255,255,255,.18)",
+                          border: "none",
+                          cursor: "pointer",
+                          transition: "all .4s",
+                          boxShadow:
+                            i === heroIdx ? "0 0 10px #7C3AED" : "none",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <button onClick={() => bumpHero(1)} className="hero-nav">
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                maxWidth: 600,
+                paddingBottom: 60,
+              }}
+            >
+              <span
+                className="hero-badge"
+                style={{ marginBottom: 18, alignSelf: "flex-start" }}
+              >
+                Intergalactic Dimensions
+              </span>
+              <h1
+                className="hero-title"
+                style={{ fontSize: "clamp(42px,7vw,80px)" }}
+              >
+                Stories from
+                <br />
+                Every Dimension.
+              </h1>
+              <p
+                style={{
+                  color: "#6b7280",
+                  fontSize: 16,
+                  marginTop: 16,
+                  marginBottom: 32,
+                }}
+              >
+                Movies, series & books — from across the multiverse.
+              </p>
+              {!user && (
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <a
+                    href="/account/signup"
+                    className="play-btn"
+                    style={{ textDecoration: "none" }}
+                  >
+                    Join Free ✨
+                  </a>
+                  <a
+                    href="/subscribe"
+                    className="sub-pill"
+                    style={{
+                      textDecoration: "none",
+                      padding: "15px 24px",
+                      borderRadius: 16,
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                    }}
+                  >
+                    <Crown size={13} /> Subscribe
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Thumbnail strip */}
+        {heroItems.length > 1 && (
+          <div
+            className="ht-strip"
+            style={{
+              position: "absolute",
+              right: 24,
+              top: "50%",
+              transform: "translateY(-50%)",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              gap: 9,
+            }}
+          >
+            {heroItems.map((item, i) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  clearInterval(heroTimer.current);
+                  setHeroIdx(i);
+                }}
+                style={{
+                  width: 52,
+                  height: 78,
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  border: `2px solid ${i === heroIdx ? "#7C3AED" : "rgba(255,255,255,.08)"}`,
+                  opacity: i === heroIdx ? 1 : 0.48,
+                  transition: "all .3s",
+                  cursor: "pointer",
+                  boxShadow:
+                    i === heroIdx ? "0 0 20px rgba(124,58,237,.5)" : "none",
+                  background: "none",
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                {item.poster_url ? (
+                  <img
+                    src={item.poster_url}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      background: "#1a0533",
+                    }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── SUBSCRIPTION BANNER ── */}
+      {!user && !userLoading && (
+        <div className="sub-banner">
+          <div
+            style={{
+              maxWidth: 1400,
+              margin: "0 auto",
+              padding: "0 28px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 16,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  height: 40,
+                  width: 40,
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg,#7C3AED,#4C1D95)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Crown size={18} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 900, fontSize: 15, margin: 0 }}>
+                  Subscribe & Watch Everything
+                </p>
+                <p style={{ color: "#9ca3af", fontSize: 12, margin: 0 }}>
+                  From $9.99/month · All paid content · Cancel anytime · PayPal,
+                  MTN, Airtel accepted
+                </p>
+              </div>
+            </div>
+            <a
+              href="/subscribe"
+              className="gbtn"
+              style={{
+                padding: "12px 26px",
+                borderRadius: 14,
+                fontWeight: 900,
+                fontSize: 13,
+                textDecoration: "none",
+                flexShrink: 0,
+              }}
+            >
+              View Plans →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════
+           BROWSE SECTION
+         ══════════════════════════════════════════ */}
+      <div
+        id="browse"
+        style={{
+          position: "relative",
+          zIndex: 10,
+          maxWidth: 1400,
+          margin: "0 auto",
+          padding: "0 28px 80px",
+        }}
+      >
+        {/* Genre pills */}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            overflowX: "auto",
+            padding: "30px 0 20px",
+            scrollbarWidth: "none",
+          }}
+          className="ns"
+        >
+          {[{ id: "all", name: "✦ All" }, ...genres].map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setSelectedGenre(g.id)}
+              style={{
+                flexShrink: 0,
+                fontSize: 12,
+                fontWeight: 700,
+                padding: "7px 18px",
+                borderRadius: 20,
+                border: "1px solid",
+                cursor: "pointer",
+                transition: "all .25s",
+                background:
+                  selectedGenre === g.id
+                    ? "linear-gradient(135deg,#7C3AED,#6D28D9)"
+                    : "rgba(255,255,255,.04)",
+                borderColor:
+                  selectedGenre === g.id ? "#7C3AED" : "rgba(255,255,255,.07)",
+                color: selectedGenre === g.id ? "white" : "#6b7280",
+                boxShadow:
+                  selectedGenre === g.id
+                    ? "0 4px 20px rgba(124,58,237,.35)"
+                    : "none",
+              }}
+            >
+              {g.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))",
+              gap: 16,
+            }}
+          >
+            {[...Array(12)].map((_, i) => (
+              <div
+                key={i}
+                className="skel"
+                style={{ aspectRatio: "2/3", borderRadius: 14 }}
+              />
+            ))}
+          </div>
+        ) : content.length === 0 ? (
+          <div
+            style={{ textAlign: "center", padding: "80px 0", color: "#4b5563" }}
+          >
+            <Film
+              size={44}
+              strokeWidth={1}
+              style={{ margin: "0 auto 16px", opacity: 0.3 }}
+            />
+            <p style={{ fontSize: 14 }}>No content found.</p>
+          </div>
+        ) : isFiltered ? (
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 20,
+              }}
+            >
+              <div
+                style={{
+                  width: 3,
+                  height: 22,
+                  background: "linear-gradient(to bottom,#7C3AED,#A78BFA)",
+                  borderRadius: 2,
+                }}
+              />
+              <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0 }}>
+                {debouncedSearch
+                  ? `"${debouncedSearch}"`
+                  : selectedGenre !== "all"
+                    ? genres.find((g) => g.id === selectedGenre)?.name
+                    : selectedType === "movie"
+                      ? "Movies"
+                      : selectedType === "series"
+                        ? "Series"
+                        : "Books"}
+              </h2>
+              <span style={{ color: "#4b5563", fontSize: 12 }}>
+                {content.length}
+              </span>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))",
+                gap: 16,
+              }}
+            >
+              {content.map((item) => (
+                <ContentCard
+                  key={item.id}
+                  item={item}
+                  onWatch={handleWatch}
+                  clicked={clickedId === item.id}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {genreRows.length > 0 ? (
+              genreRows.map((row) => (
+                <ContentRow
+                  key={row.genre.id}
+                  title={row.genre.name}
+                  items={row.items}
+                  onWatch={handleWatch}
+                  clickedId={clickedId}
+                />
+              ))
+            ) : (
+              <>
+                {content.filter((c) => c.type !== "storybook").length > 0 && (
+                  <ContentRow
+                    title="🎬 Movies & Series"
+                    items={content.filter((c) => c.type !== "storybook")}
+                    onWatch={handleWatch}
+                    clickedId={clickedId}
+                  />
+                )}
+                {content.filter((c) => c.type === "storybook").length > 0 && (
+                  <ContentRow
+                    title="📚 Story Books"
+                    items={content.filter((c) => c.type === "storybook")}
+                    onWatch={handleWatch}
+                    clickedId={clickedId}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── FOOTER ── */}
+      <footer
+        style={{
+          position: "relative",
+          zIndex: 10,
+          borderTop: "1px solid rgba(255,255,255,.04)",
+          background: "rgba(3,3,8,.98)",
+          padding: "40px 24px",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 20,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ position: "relative", width: 32, height: 32 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 1,
+                  borderRadius: "50%",
+                  border: "1px dashed rgba(124,58,237,.3)",
+                  animation: "mRing 20s linear infinite",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%,-50%)",
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#7C3AED,#4C1D95)",
+                  overflow: "hidden",
+                }}
+              >
+                <img
+                  src={LOGO_URL}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    opacity: 0.85,
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 8,
+                  fontWeight: 900,
+                  letterSpacing: ".25em",
+                  color: "#A78BFA",
+                }}
+              >
+                INTERGALACTIC
+              </div>
+              <div
+                style={{
+                  fontSize: 8,
+                  fontWeight: 900,
+                  letterSpacing: ".25em",
+                  color: "white",
+                }}
+              >
+                DIMENSIONS
+              </div>
+            </div>
+          </div>
+          <p style={{ color: "#374151", fontSize: 11, margin: 0 }}>
+            © 2026 Intergalactic Dimensions. All rights reserved.
+          </p>
+          <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
+            <a
+              href="/subscribe"
+              style={{
+                color: "#A78BFA",
+                textDecoration: "none",
+                fontWeight: 700,
+              }}
+            >
+              Subscribe
+            </a>
+            {!user ? (
+              <>
+                <a
+                  href="/account/signin"
+                  style={{ color: "#6b7280", textDecoration: "none" }}
+                >
+                  Sign In
+                </a>
+                <a
+                  href="/account/signup"
+                  style={{ color: "#6b7280", textDecoration: "none" }}
+                >
+                  Join Free
+                </a>
+              </>
+            ) : (
+              <a
+                href="/account/logout"
+                style={{ color: "#6b7280", textDecoration: "none" }}
+              >
+                Sign Out
+              </a>
+            )}
+          </div>
+        </div>
+      </footer>
+
+      <style jsx global>{`
+        *{box-sizing:border-box}
+        .ns::-webkit-scrollbar{display:none}.ns{-ms-overflow-style:none;scrollbar-width:none}
+
+        /* Nebulae */
+        .neb{position:absolute;border-radius:50%;pointer-events:none}
+        .neb1{width:900px;height:900px;top:-360px;left:-300px;background:radial-gradient(circle,rgba(124,58,237,.12) 0%,transparent 65%);animation:nf 36s ease-in-out infinite}
+        .neb2{width:700px;height:700px;top:30%;right:-240px;background:radial-gradient(circle,rgba(6,182,212,.07) 0%,transparent 65%);animation:nf 29s ease-in-out infinite;animation-delay:-13s}
+        .neb3{width:600px;height:600px;bottom:0;left:18%;background:radial-gradient(circle,rgba(167,139,250,.08) 0%,transparent 65%);animation:nf 42s ease-in-out infinite;animation-delay:-24s}
+        @keyframes nf{0%,100%{transform:translateY(0) scale(1)}40%{transform:translateY(-65px) scale(1.09)}70%{transform:translateY(42px) scale(.93)}}
+
+        /* Stars */
+        .st{position:absolute;inset:0;pointer-events:none}
+        .st1{background-image:radial-gradient(.8px .8px at 8% 12%,rgba(255,255,255,.48) 0%,transparent 100%),radial-gradient(.8px .8px at 22% 48%,rgba(255,255,255,.38) 0%,transparent 100%),radial-gradient(.8px .8px at 38% 7%,rgba(255,255,255,.52) 0%,transparent 100%),radial-gradient(.8px .8px at 53% 65%,rgba(255,255,255,.33) 0%,transparent 100%),radial-gradient(.8px .8px at 69% 23%,rgba(255,255,255,.42) 0%,transparent 100%),radial-gradient(.8px .8px at 81% 78%,rgba(255,255,255,.28) 0%,transparent 100%),radial-gradient(.8px .8px at 91% 38%,rgba(255,255,255,.37) 0%,transparent 100%),radial-gradient(.8px .8px at 5% 84%,rgba(200,180,255,.36) 0%,transparent 100%),radial-gradient(.8px .8px at 33% 92%,rgba(255,255,255,.26) 0%,transparent 100%),radial-gradient(.8px .8px at 76% 56%,rgba(255,255,255,.31) 0%,transparent 100%),radial-gradient(.8px .8px at 15% 57%,rgba(255,255,255,.25) 0%,transparent 100%),radial-gradient(.8px .8px at 47% 33%,rgba(255,255,255,.43) 0%,transparent 100%),radial-gradient(.8px .8px at 95% 13%,rgba(255,255,255,.35) 0%,transparent 100%);animation:sd1 135s linear infinite}
+        .st2{background-image:radial-gradient(1.4px 1.4px at 15% 30%,rgba(167,139,250,.62) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 42% 18%,rgba(255,255,255,.57) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 70% 42%,rgba(255,255,255,.48) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 85% 68%,rgba(200,180,255,.54) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 55% 87%,rgba(255,255,255,.43) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 25% 72%,rgba(255,255,255,.33) 0%,transparent 100%),radial-gradient(1.4px 1.4px at 79% 15%,rgba(167,139,250,.46) 0%,transparent 100%);animation:sd2 100s linear infinite reverse}
+        .st3{background-image:radial-gradient(2.3px 2.3px at 29% 55%,rgba(167,139,250,.82) 0%,transparent 100%),radial-gradient(2.3px 2.3px at 65% 15%,rgba(255,255,255,.73) 0%,transparent 100%),radial-gradient(2.9px 2.9px at 10% 70%,rgba(200,180,255,.64) 0%,transparent 100%),radial-gradient(2.3px 2.3px at 88% 88%,rgba(255,255,255,.7) 0%,transparent 100%),radial-gradient(2.1px 2.1px at 44% 39%,rgba(167,139,250,.57) 0%,transparent 100%);animation:sd3 70s linear infinite}
+        @keyframes sd1{0%{transform:translate(0,0)}100%{transform:translate(-55px,-95px)}}
+        @keyframes sd2{0%{transform:translate(0,0)}100%{transform:translate(38px,-58px)}}
+        @keyframes sd3{0%{transform:translate(0,0)}100%{transform:translate(-28px,-38px)}}
+
+        /* Film grain */
+        .grain{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.3;pointer-events:none;animation:grn .5s steps(2) infinite}
+        @keyframes grn{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(-1px,-1px)}100%{transform:translate(1px,1px)}}
+
+        /* Scan line */
+        .scan{position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(124,58,237,.4),transparent);animation:sc 9s linear infinite;pointer-events:none}
+        @keyframes sc{0%{top:-2px}100%{top:100%}}
+
+        /* Cinematic flash */
+        .cin-flash{position:fixed;inset:0;z-index:200;pointer-events:none;background:radial-gradient(ellipse at center,rgba(124,58,237,.28) 0%,transparent 70%);animation:cf .7s ease-out forwards}
+        @keyframes cf{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
+
+        /* Navbar */
+        .navbar{position:fixed;top:0;left:0;right:0;z-index:50;background:linear-gradient(to bottom,rgba(3,3,8,.96) 0%,rgba(3,3,8,0) 100%);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
+
+        /* Mini wheel */
+        @keyframes mOrb{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes mRing{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+
+        /* Hero */
+        .hero-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;animation:hbg 1s cubic-bezier(.16,1,.3,1) forwards}
+        @keyframes hbg{from{opacity:0;transform:scale(1.07)}to{opacity:1;transform:scale(1.03)}}
+        .hero-title{font-size:clamp(38px,5.5vw,72px);font-weight:900;line-height:.94;letter-spacing:-.025em;margin:0 0 18px;background:linear-gradient(140deg,#ffffff 0%,#d4bbff 55%,#a78bfa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:ht .8s cubic-bezier(.16,1,.3,1) both}
+        @keyframes ht{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
+        .hero-badge{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#7C3AED,#6D28D9);padding:4px 12px;border-radius:20px;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
+        .play-btn{display:inline-flex;align-items:center;gap:10px;background:white;color:#030308;border:none;border-radius:16px;padding:15px 30px;font-size:14px;font-weight:900;cursor:pointer;transition:all .25s;box-shadow:0 8px 32px rgba(255,255,255,.15)}
+        .play-btn:hover{transform:scale(1.04) translateY(-2px);box-shadow:0 16px 40px rgba(255,255,255,.2)}
+        .play-clicked{animation:pc .65s ease-out}
+        @keyframes pc{0%{transform:scale(1)}30%{transform:scale(.93)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+        .hero-nav{height:38px;width:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);cursor:pointer;color:white;transition:background .2s}
+        .hero-nav:hover{background:rgba(255,255,255,.14)}
+
+        /* Subs */
+        .sub-chip{background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(76,29,149,.15));border:1px solid rgba(124,58,237,.4);color:#A78BFA;transition:all .2s}
+        .sub-chip:hover{background:linear-gradient(135deg,rgba(124,58,237,.4),rgba(76,29,149,.3))}
+        .sub-pill{background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);color:#A78BFA;font-weight:700}
+        .sub-pill:hover{background:rgba(124,58,237,.22)}
+        .sub-banner{position:relative;z-index:10;border-top:1px solid rgba(124,58,237,.14);border-bottom:1px solid rgba(124,58,237,.09);background:linear-gradient(90deg,rgba(124,58,237,.06) 0%,rgba(3,3,8,.8) 100%);padding:20px 24px}
+        .owner-chip{background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);color:#A78BFA}
+        .ghost-chip{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#d1d5db}
+
+        /* Buttons */
+        .gbtn{background:linear-gradient(135deg,#7C3AED,#6D28D9);color:white;display:inline-flex;align-items:center;justify-content:center;transition:all .2s}
+        .gbtn:hover{opacity:.88;transform:translateY(-1px)}
+        .sbtn{background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.35);color:#A78BFA;font-weight:700;display:inline-flex;align-items:center;justify-content:center;transition:all .2s}
+        .sbtn:hover{background:rgba(124,58,237,.28)}
+        .gbtn-ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:white;display:inline-flex;align-items:center;justify-content:center;transition:background .2s}
+        .gbtn-ghost:hover{background:rgba(255,255,255,.12)}
+
+        /* Modal */
+        .modal-back{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.88);backdrop-filter:blur(24px)}
+        .modal-box{background:rgba(10,10,22,.98);border:1px solid rgba(124,58,237,.3);border-radius:24px;padding:40px 32px;position:relative;box-shadow:0 0 80px rgba(124,58,237,.2),0 40px 80px rgba(0,0,0,.7)}
+
+        /* Skeleton */
+        .skel{background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 100%);background-size:200%;animation:shim 1.5s infinite}
+        @keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+        /* Responsive */
+        .di{display:flex}
+        .ctabs{display:flex}
+        .mob-btn{display:none!important}
+        .ht-strip{display:flex}
+        @media(max-width:900px){.ctabs{display:none!important}.di{display:none!important}.mob-btn{display:flex!important}.ht-strip{display:none!important}}
+
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
+    </div>
+  );
+}
+
+function ContentRow({ title, items, onWatch, clickedId }) {
+  return (
+    <div style={{ marginBottom: 44 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            width: 3,
+            height: 22,
+            background: "linear-gradient(to bottom,#7C3AED,#A78BFA)",
+            borderRadius: 2,
+          }}
+        />
+        <h2
+          style={{
+            fontSize: "clamp(16px,2vw,20px)",
+            fontWeight: 900,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h2>
+        <span style={{ color: "#374151", fontSize: 12 }}>{items.length}</span>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 14,
+          overflowX: "auto",
+          paddingBottom: 12,
+          scrollbarWidth: "none",
+        }}
+        className="ns"
+      >
+        {items.map((item) => (
+          <div
+            key={item.id}
+            style={{ flexShrink: 0, width: "clamp(138px,11.5vw,172px)" }}
+          >
+            <ContentCard
+              item={item}
+              onWatch={onWatch}
+              clicked={clickedId === item.id}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContentCard({ item, onWatch, clicked }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onClick={() => onWatch(item)}
+      style={{
+        borderRadius: 13,
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s",
+        transform: hov
+          ? "scale(1.07) translateY(-6px)"
+          : clicked
+            ? "scale(.93)"
+            : "scale(1)",
+        boxShadow: hov
+          ? "0 0 0 1.5px rgba(124,58,237,.6),0 24px 48px rgba(0,0,0,.5),0 0 32px rgba(124,58,237,.2)"
+          : "none",
+      }}
+    >
+      <div
+        style={{
+          aspectRatio: "2/3",
+          position: "relative",
+          overflow: "hidden",
+          background: "linear-gradient(135deg,#1a0533,#0d0d2b)",
+        }}
+      >
+        {item.poster_url ? (
+          <img
+            src={item.poster_url}
+            alt={item.title}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "top center",
+              transition: "transform .6s ease",
+              transform: hov ? "scale(1.11)" : "scale(1)",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#374151",
+            }}
+          >
+            {item.type === "storybook" ? (
+              <BookOpen size={32} strokeWidth={1} />
+            ) : (
+              <Film size={32} strokeWidth={1} />
+            )}
+          </div>
+        )}
+        {/* Hover overlay */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(3,3,8,.72)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: hov ? 1 : 0,
+            transition: "opacity .3s",
+            backdropFilter: hov ? "blur(3px)" : "none",
+          }}
+        >
+          <div
+            style={{
+              height: 48,
+              width: 48,
+              borderRadius: "50%",
+              background: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 8,
+              boxShadow: "0 8px 24px rgba(0,0,0,.5)",
+            }}
+          >
+            <Play size={17} fill="#030308" style={{ marginLeft: 2 }} />
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 900, color: "white" }}>
+            {item.type === "storybook" ? "Read" : "Watch"}
+          </span>
+          {(item.views || 0) > 0 && (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 3,
+                color: "#9ca3af",
+                fontSize: 10,
+                marginTop: 4,
+              }}
+            >
+              <Eye size={8} />
+              {item.views}
+            </span>
+          )}
+        </div>
+        {/* Badges */}
+        <div style={{ position: "absolute", top: 7, left: 7 }}>
+          {item.is_free ? (
+            <span
+              style={{
+                background: "rgba(34,197,94,.88)",
+                color: "white",
+                fontSize: 9,
+                fontWeight: 900,
+                padding: "2px 7px",
+                borderRadius: 8,
+              }}
+            >
+              FREE
+            </span>
+          ) : (
+            <span
+              style={{
+                background: "rgba(251,191,36,.9)",
+                color: "#030308",
+                fontSize: 9,
+                fontWeight: 900,
+                padding: "2px 7px",
+                borderRadius: 8,
+              }}
+            >
+              ${item.price}
+            </span>
+          )}
+        </div>
+        <div style={{ position: "absolute", top: 7, right: 7 }}>
+          <span
+            style={{
+              background: "rgba(0,0,0,.65)",
+              color: "#d1d5db",
+              fontSize: 8,
+              fontWeight: 700,
+              padding: "2px 5px",
+              borderRadius: 6,
+              textTransform: "uppercase",
+            }}
+          >
+            {item.type === "storybook"
+              ? "Book"
+              : item.type === "series"
+                ? "Series"
+                : "Film"}
+          </span>
+        </div>
+        {clicked && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(124,58,237,.35)",
+              animation: "cf .6s ease-out forwards",
+            }}
+          />
+        )}
+      </div>
+      <div
+        style={{
+          padding: "9px 10px 11px",
+          background: "linear-gradient(to bottom,#0d0d1a,#030308)",
+        }}
+      >
+        <p
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: "white",
+            margin: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.title}
+        </p>
+        {item.genre_name && (
+          <p style={{ fontSize: 10, color: "#374151", margin: "3px 0 0" }}>
+            {item.genre_name}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,41 @@
+import sql from "@/app/api/utils/sql";
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const contentId = searchParams.get("contentId");
+    const season = searchParams.get("season");
+
+    if (!contentId) {
+      return Response.json({ error: "contentId required" }, { status: 400 });
+    }
+
+    let query = `SELECT * FROM episodes WHERE content_id = $1`;
+    const params = [contentId];
+
+    if (season) {
+      params.push(parseInt(season));
+      query += ` AND season = $${params.length}`;
+    }
+
+    query += ` ORDER BY season ASC, episode_number ASC`;
+    const episodes = await sql(query, params);
+    return Response.json({ episodes });
+  } catch (err) {
+    console.error("GET /api/episodes error", err);
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const { episodeId } = await request.json();
+    if (!episodeId) return Response.json({ ok: false });
+    await sql`UPDATE episodes SET views = COALESCE(views, 0) + 1 WHERE id = ${episodeId}`;
+    await sql`UPDATE content SET views = COALESCE(views, 0) + 1 WHERE id = (SELECT content_id FROM episodes WHERE id = ${episodeId})`;
+    return Response.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/episodes view error", err);
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
